@@ -1,92 +1,163 @@
-// utils/ragHelper.ts
+// src/utils/ragHelper.ts
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { pipeline } from '@xenova/transformers';
 
-const PINECONE_API_KEY ='pcsk_2oVkvR_6NYvbzb4mFtNDUWpzo5J2enuXeug8NT9FeFDc1Ys4F6g17jitSrnpv1ytdiaEkT'
-const GOOGLE_API_KEY ='AIzaSyDr6KjoDsPwQiAdDN-8CdzTTbIk8rIIZRg'
-const PINECONE_ENVIRONMENT ="us-east-1";
-const INDEX_NAME = "horizon-blue-index";
+const embedder = await pipeline('feature-extraction', 'WhereIsAI/UAE-Large-V1');
 
-// Plan index mapping
-const PLAN_INDEXES = {
-    'Horizon Blue': 'horizon-blue-index',
-    'AmeriHealth Platinum': 'ameriplatinum-index',
-    'AmeriHealth Gold': 'amerigold-index',
-    'AmeriHealth Silver': 'amerisilver-index',
-    'UnitedHealthcare Oxford': 'oxford-index'
+// Configuration constants
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY || 'pinecone_key';
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY 
+const DIMENSION = 1024;
+const DEFAULT_INDEX = 'formatedhorizon'; // Updated comment to match the default index
+
+// Interface definitions
+interface RAGResponse {
+    type: 'ai_response' | 'error';
+    message: string;
+    metadata?: {
+        context?: string;
+        confidence: number;
+        planName?: string;
+    };
+}
+
+// Plan configuration
+interface PlanConfig {
+    indexName: string;
+    displayName: string;
+    description: string;
+}
+
+const PLAN_CONFIGS: { [key: string]: PlanConfig } = {
+    'formatedhorizon': {
+        indexName: 'formatedhorizon',
+        displayName: 'Horizon Blue Cross Blue Shield',
+        description: 'Comprehensive healthcare coverage by Horizon Blue Cross Blue Shield'
+    }
 };
 
-// Initialize Pinecone
-
-
-const pinecone = new Pinecone({
-    apiKey: 'pcsk_2oVkvR_6NYvbzb4mFtNDUWpzo5J2enuXeug8NT9FeFDc1Ys4F6g17jitSrnpv1ytdiaEkT',
-    controllerHostUrl: `https://amerigold-04vrgvs.svc.aped-4627-b74a.pinecone.io`
-});
-
+// Initialize Pinecone client
+const pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
 
 // Initialize Google Gemini
 const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-async function initializePineconeIndex() {
+/**
+ * Get plan configuration by name, defaults to Horizon Blue
+ */
+function getPlanConfig(planName?: string): PlanConfig {
+    if (!planName) return PLAN_CONFIGS[DEFAULT_INDEX];
+    const normalizedPlanName = planName.toLowerCase().replace(/\s+/g, '');
+    return PLAN_CONFIGS[normalizedPlanName] || PLAN_CONFIGS[DEFAULT_INDEX];
+}
+
+/**
+ * Generates embeddings for the input text
+ */
+async function generateEmbeddings(text: string): Promise<number[]> {
     try {
-        const indexList = await pc.listIndexes();
-        if (!indexList.some(index => index.name === INDEX_NAME)) {
-            console.error(`Index '${INDEX_NAME}' does not exist`);
-            return null;
-        }
-        return pc.Index(INDEX_NAME);
+        const embeddings = await embedder(text, { pooling: 'mean', normalize: true }); // Optimized pooling method
+        return embeddings.data.slice(0, 1024); // Ensure it matches the expected dimension
     } catch (error) {
-        console.error('Failed to initialize Pinecone index:', error);
-        return null;
+        console.error('Error generating embeddings:', error);
+        return Array(1024).fill(0);
     }
 }
 
-async function retrieveBestDocument(query: string, index: any) {
+/**
+ * Retrieves the best-matching context for a query
+ */
+async function retrieveSingleBestContext(queryEmbedding: number[], index: any): Promise<string> {
     try {
         const results = await index.query({
-            vector: query,
-            topK: 1,
+            namespace:"all-plans",
+            vector: queryEmbedding,
+            topK: 3, // Increased topK for better retrieval
             includeMetadata: true
         });
 
-        return results.matches[0]?.metadata?.text || "";
+        if (results.matches.length === 0) return "";
+
+        // Selecting the best match based on confidence score
+        results.matches.sort((a: any, b: any) => b.score - a.score);
+        return results.matches[0].metadata.text;
     } catch (error) {
-        console.error('Error retrieving document:', error);
+        console.error('Error retrieving context:', error);
         return "";
     }
 }
 
-async function queryRAGSystem(query: string, planName: string) {
+/**
+ * Generates a response using Gemini
+ */
+async function generateResponse(query: string, context: string, planConfig: PlanConfig): Promise<string> {
     try {
-        const index = await initializePineconeIndex();
-        if (!index) {
-            throw new Error("Pinecone index not initialized");
-        }
+        const prompt = `
+You are a helpful assistant answering questions about ${planConfig.displayName}. 
+try to answer from the context and assistant answer. Dont hallucinate
 
-        // Get the specific plan index if available
-        const planIndex = PLAN_INDEXES[planName as keyof typeof PLAN_INDEXES];
-        if (planIndex) {
-            // Use plan-specific index for the query
-            const specificIndex = pc.Index(planIndex);
-            const context = await retrieveBestDocument(query, specificIndex);
+ 
 
-            // Generate response using Gemini
-            const result = await model.generateContent(query);
-            const response = result.response?.text() || "";
+Context:
+${context}
 
-            return {
-                type: 'ai_response',
-                message: response,
-                context: context,
-                confidence: result.response ? 1 : 0
-            };
-        } else {
-            throw new Error("Invalid plan name");
-        }
+Question: ${query}
+
+Answer:
+`;
+
+        const result = await model.generateContent(prompt);
+        return result.response?.text() || "I couldn't generate a response at this time.";
     } catch (error) {
-        console.error('RAG Query Error:', error);
-        throw error;
+        console.error('Error generating response:', error);
+        return "An error occurred while generating the response.";
     }
 }
+
+/**
+ * Main RAG system query function
+ */
+export async function queryRAGSystem(query: string, planName?: string): Promise<RAGResponse> {
+    try {
+        if (!query.trim()) {
+            throw new Error("Query cannot be empty");
+        }
+
+        const planConfig = getPlanConfig(planName);
+        const queryEmbedding = await generateEmbeddings(query);
+        const index = pinecone.index(planConfig.indexName);
+        const context = await retrieveSingleBestContext(queryEmbedding, index);
+
+        if (!context) {
+            return {
+                type: 'ai_response',
+                message: `I don't have specific information about that aspect of ${planConfig.displayName}.`,
+                metadata: { confidence: 0, planName: planConfig.displayName }
+            };
+        }
+
+        const response = await generateResponse(query, context, planConfig);
+        return {
+            type: 'ai_response',
+            message: response,
+            metadata: { context, confidence: 1, planName: planConfig.displayName }
+        };
+    } catch (error) {
+        console.error('RAG System Error:', error);
+        return {
+            type: 'error',
+            message: error instanceof Error ? error.message : 'An unexpected error occurred',
+            metadata: { confidence: 0 }
+        };
+    }
+}
+
+// Export helper functions for testing
+export const _test = {
+    generateEmbeddings,
+    retrieveSingleBestContext,
+    generateResponse,
+    getPlanConfig
+};

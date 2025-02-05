@@ -5,8 +5,9 @@
 
 /* Your custom styles */
 .typing-indicator {
-  @apply flex items-center space-x-1;
+  @apply flex space-x-1;
 }
+
 
 .typing-indicator span {
   @apply w-2 h-2 bg-gray-400 rounded-full;

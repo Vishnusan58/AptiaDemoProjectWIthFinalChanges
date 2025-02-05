@@ -15,7 +15,7 @@ interface InsurancePlanProps {
 
 const InsurancePlan: React.FC<InsurancePlanProps> = ({
                                                          planName = "Horizon Blue",
-                                                         premium = "$/month",
+                                                         premium = "$50/month",
                                                          coverageDetails = [
                                                              { label: "Individual Deductible", value: "$1500" },
                                                              { label: "Family Deductible", value: "$3000" },
@@ -23,8 +23,8 @@ const InsurancePlan: React.FC<InsurancePlanProps> = ({
                                                              { label: "Diagnostic Test Copay", value: "$0" },
                                                              { label: "Generic Drugs Copay", value: "$10" },
                                                              { label: "Emergency Room Care", value: "$100" },
-                                                             { label: "Maternity Coverage", value: "Full Coverage" },
-                                                             { label: "Vaccination Coverage", value: "$10 Copay" },
+                                                             { label: "Maternity Coverage", value: "$0" },
+                                                             { label: "Vaccination Coverage", value: "No charges" },
                                                          ],
                                                      }) => {
     return (

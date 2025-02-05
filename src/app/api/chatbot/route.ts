@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "AIzaSyDr6KjoDsPwQiAdDN-8CdzTTbIk8rIIZRg");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || 'your_google_key');
 
 // Define the structure for insurance questions
 interface Question {
