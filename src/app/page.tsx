@@ -12,10 +12,10 @@ export default function LandingPage() {
 
       {/* Main Content */}
       <div className="bg-white shadow-xl rounded-xl p-8 text-center w-[80%]">
-        <h1 className="text-2xl font-bold mb-4 text-violet-600">Policy Details</h1>
+        <h1 className="text-2xl font-bold mb-4 text-violet-600">Health Plan Details</h1>
         <p className="text-lg"><strong>Employee ID:</strong> <span className="">EMP1000435</span></p>
-        <p className="text-lg"><strong>Policy Holder Name:</strong> <span className="">Alex S.</span></p>
-        <p className="text-lg mb-5"><strong>Current Insurance Plan:</strong> <span className="">Horizon Platinum</span></p>
+        <p className="text-lg"><strong>Employee Name:</strong> <span className="">Alex S.</span></p>
+        <p className="text-lg mb-5"><strong>Current Plan:</strong> <span className="">Horizon Platinum</span></p>
         <Home/>
       </div>
     </div>

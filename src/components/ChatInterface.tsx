@@ -28,31 +28,42 @@ const CURRENT_PLAN: InsurancePlan = {
     planName: "Horizon Platinum",
     coverageDetails: [
         {
-            label: "Maternity",
-            inNetwork: "No Charge",
-            outOfNetwork: "30% Coinsurance"
+            "label": "Physician Visit",
+            "inNetwork": "$20 Copayment / Visit",
+            "outOfNetwork": "30% Coinsurance"
         },
         {
-            label: "Children Eye Exam",
-            inNetwork: "No Charge",
-            outOfNetwork: "Not Covered"
+            "label": "Diagnostic Test (X-Ray, Blood Work)",
+            "inNetwork": "No Charge",
+            "outOfNetwork": "30% Coinsurance"
         },
         {
-            label: "Children Glasses",
-            inNetwork: "Amount > $150",
-            outOfNetwork: "Not Covered"
+            "label": "Imaging (CT/PET Scans, MRIs)",
+            "inNetwork": "No Charge",
+            "outOfNetwork": "30% Coinsurance"
         },
         {
-            label: "Children Dental",
-            inNetwork: "Not Covered",
-            outOfNetwork: "Not Covered"
+            "label": "Outpatient Surgery",
+            "inNetwork": "$150 Copayment / Visit",
+            "outOfNetwork": "30% Coinsurance"
         },
         {
-            label: "Vaccination",
-            inNetwork: "No Charge",
-            outOfNetwork: "No Charge (Deductible Doesn't Apply)"
+            "label": "Emergency Room Care",
+            "inNetwork": "$100 Copayment / Visit",
+            "outOfNetwork": "$100 Copayment / Visit (Deductible does not apply)"
+        },
+        {
+            "label": "Emergency Medical Transportation",
+            "inNetwork": "No Charge",
+            "outOfNetwork": "No Charge (Deductible does not apply)"
+        },
+        {
+            "label": "Urgent Care",
+            "inNetwork": "$75 Copayment",
+            "outOfNetwork": "$75 Copayment (Deductible does not apply)"
         }
     ]
+    
 };
 
 const AVAILABLE_PLANS: InsurancePlan[] = [
@@ -161,7 +172,7 @@ const ChatInterface = () => {
             else if (userMessage.toLowerCase() === 'yes' || userMessage.toLowerCase() === "modify" && !selectedPlan) {
                 setMessages(prev => [...prev, {
                     type: 'bot',
-                    content: `What changes would you like to make to your plan? Do you want to adjust the coverage, update your hospital network, add family members, anticipate any extra expenses this year, or include services like maternity?`,
+                    content: `Are there any life events that require an update in your plan and coverages?`,
                 }]);
             }
             else if ( userMessage.toLowerCase().includes('wife')) {
@@ -283,11 +294,11 @@ const ChatInterface = () => {
                                                     <span>Service</span>
                                                     <div className='flex flex-col'>
                                                         <span>In Network</span>
-                                                        <span>What you need to pay?</span>
+                                                        <span>What you need to pay</span>
                                                     </div>
                                                     <div className='flex flex-col'>
                                                         <span>Out of Network</span>
-                                                        <span>What you need to pay?</span>
+                                                        <span>What you need to pay</span>
                                                     </div>
                                                 </div>
                                                 {plan.coverageDetails.map((detail, j) => (
@@ -314,7 +325,7 @@ const ChatInterface = () => {
     return (
         <div className="flex flex-col h-screen">
             <div className="p-4 bg-blue-500 text-white">
-                <h1 className="text-xl font-bold">Insurance Assistant</h1>
+                <h1 className="text-xl font-bold">Open Enrollment Assistant</h1>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">

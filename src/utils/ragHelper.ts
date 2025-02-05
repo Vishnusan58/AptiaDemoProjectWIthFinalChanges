@@ -1,15 +1,11 @@
-// src/utils/ragHelper.ts
 import { Pinecone } from '@pinecone-database/pinecone';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { pipeline } from '@xenova/transformers';
-
-const embedder = await pipeline('feature-extraction', 'WhereIsAI/UAE-Large-V1');
+import OpenAI from 'openai';
 
 // Configuration constants
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY || 'pinecone_key';
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY 
-const DIMENSION = 1024;
-const DEFAULT_INDEX = 'formatedhorizon'; // Updated comment to match the default index
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY || 'your_pinecone_key';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'your_openai_key';
+const DIMENSION = 1024; // Using 1024 dimensions for embeddings
+const DEFAULT_INDEX = 'formatedhorizon'; // Default Pinecone index
 
 // Interface definitions
 interface RAGResponse {
@@ -40,9 +36,8 @@ const PLAN_CONFIGS: { [key: string]: PlanConfig } = {
 // Initialize Pinecone client
 const pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
 
-// Initialize Google Gemini
-const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Initialize OpenAI
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 /**
  * Get plan configuration by name, defaults to Horizon Blue
@@ -54,15 +49,20 @@ function getPlanConfig(planName?: string): PlanConfig {
 }
 
 /**
- * Generates embeddings for the input text
+ * Generates embeddings for the input text using OpenAI's text-embedding-3-large
+ * and truncates the vector to 1024 dimensions.
  */
 async function generateEmbeddings(text: string): Promise<number[]> {
     try {
-        const embeddings = await embedder(text, { pooling: 'mean', normalize: true }); // Optimized pooling method
-        return embeddings.data.slice(0, 1024); // Ensure it matches the expected dimension
+        const response = await openai.embeddings.create({
+            model: "text-embedding-3-large",
+            input: text
+        });
+
+        return response.data[0].embedding.slice(0, 1024); // Truncate to 1024 dimensions
     } catch (error) {
         console.error('Error generating embeddings:', error);
-        return Array(1024).fill(0);
+        return Array(DIMENSION).fill(0);
     }
 }
 
@@ -72,9 +72,8 @@ async function generateEmbeddings(text: string): Promise<number[]> {
 async function retrieveSingleBestContext(queryEmbedding: number[], index: any): Promise<string> {
     try {
         const results = await index.query({
-            namespace:"all-plans",
             vector: queryEmbedding,
-            topK: 3, // Increased topK for better retrieval
+            topK: 7, // Increased topK for better retrieval
             includeMetadata: true
         });
 
@@ -90,15 +89,13 @@ async function retrieveSingleBestContext(queryEmbedding: number[], index: any): 
 }
 
 /**
- * Generates a response using Gemini
+ * Generates a response using OpenAI GPT-4o-mini
  */
 async function generateResponse(query: string, context: string, planConfig: PlanConfig): Promise<string> {
     try {
         const prompt = `
-You are a helpful assistant answering questions about ${planConfig.displayName}. 
-try to answer from the context and assistant answer. Dont hallucinate
-
- 
+You are an expert assistant answering questions about ${planConfig.displayName}. 
+Use ONLY the given context to answer the question concisely.
 
 Context:
 ${context}
@@ -108,8 +105,14 @@ Question: ${query}
 Answer:
 `;
 
-        const result = await model.generateContent(prompt);
-        return result.response?.text() || "I couldn't generate a response at this time.";
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "system", content: "You are an expert insurance assistant." }, { role: "user", content: prompt }],
+            max_tokens: 150,
+            temperature: 0.3
+        });
+
+        return response.choices[0]?.message?.content || "I'm unable to generate a response at this time.";
     } catch (error) {
         console.error('Error generating response:', error);
         return "An error occurred while generating the response.";
