@@ -1,7 +1,7 @@
 // src/app/layout.tsx\
 import "@/styles/globals.css"
 export const metadata = {
-    title: "My App",
+    title: "Aptia Answers",
     description: "A simple Next.js app",
 };
 
